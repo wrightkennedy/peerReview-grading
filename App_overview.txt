@@ -1,0 +1,101 @@
+I want to create a browser-based tool for my Teaching Assistants to summarize, prepare, and create CSV outputs to be uploaded to the gradebook on Blackboard. There are three main assignment types that need to be processed; I will detail them below.
+What is the best way to deploy this? Would a JS webpage work best, and all data remain local on the TA machine? One TA will download the CSVs from Blackboard and Sharepoint List each week, and process them through the system (JS webtool or whatever you recommend).
+Below is a plan I've been working on for the system. Some of it is out of order and may need more detail. Please review the whole thing, consider the best language/deployment for this system, create a logical work plan, and ask me important questions along the way.
+
+Note: I will use abbreviations for some terms in these instructions, but these are for internal use only. Use the full name for the user interface.
+
+Top menu
+Select Assignment Type:
+Task 1: Assignment + Attendance
+Task 2: Summary of Peer Review
+Task 3: Peer Review Participation
+
+Task 1: Attendance Verification for in-class Assignment
+Inputs:[both required] 
+1. Upload option for Gradebook CSV (gCSV1) for Blackboard assignment (Discussion Post) 
+2. Upload option for Attendance CSV (aCSV1) from attendance logging system.
+
+Processing:
+1. Join aCSV to gCSV1 based on user-selected fields (default: gCSV1 = "Username" and aCSV1 = "username"). Keep all records from gCSV1. Only add "status" field from aCSV1 to gCSV1
+2. Filter the new CSV (gCSV_a1) to records matching both conditions A and B (below):
+A. Record has "Needs Grading" in the assignment field (name will vary, but an example is "ch19 WWI part 2 [Total Pts: 5 Score] |8927935"). Add a drop-down box for the user to select the field. By default, select the first field with "Total Pts" anywhere in the field name.
+B. "status" field from aCSV1 <> "Present"
+3. For records matching these two conditions, update the value "Needs Grading" (for field selected in previous step) to "0"
+4. Allow user to select feedback field from the gCSV_a1 (default = "Feedback to Learner") ## it might make sense to have the user complete this step and the next step at the beginning as well, before the join
+5. Include a text box that allows user to enter feedback text (use basic html for formatting, e.g., <b>, <br>). The default text in this text box should read "No attendance recorded.<br>If you did swipe in with your Carolina Card, please register your card with a TA in the next lecture class. We will ensure you receive credit for this assignment."
+6. output the new CSV. The default name should be gCSV1 + "_NoAttendance.csv" 
+
+Notes:
+The field names are very important. If any field names change from the Gradebook CSV, the new CSV will not upload correctly to Blackboard. 
+
+Task 2: Summary of Peer Review Assessment
+Inputs
+1. Upload option for Gradebook CSV (gCSV2) for Blackboard assignment [required]
+2. Upload option for summarized peer reviews CSV (sumCSV2)
+
+Parameters:
+Optional (default on): Set chapter number from the first field in gCSV2 that includes "Total Pts" anywhere in the field name. The first 4 characters of the field name should be the chapter number (e.g., "ch18") and the range for the last two digitals should be between 15 and 29. ##Most likely, we will use the full CSV each week, so filtering by chapter number is important.
+Filter sumCSV2 and assignCSV2 by chapter number; user selects chapter fields (default: sumCSV2 = "Chapter" and assignCSV2 = "Chapter"
+User selects Join Fields (default: gCSV2 = "Username" and sumCSV2 = "Username" and assignCSV2 = "ReviewerUsername)
+
+Processing for gCSV2+sumCSV2:
+If input is gCSV2 and sumCSV2:
+1. Join sumCSV2 to gCSV2 based on user-selected fields (default: gCSV2 = "Username" and sumCSV2 = "Username"). Keep all records from gCSV2.
+2. User should select target assignment field and feedback field (optional) from gCSV2. default: assignment = [first field containing "Total Pts" anywhere in the field name]; feedback field = "Feedback to Learner" ##these fields will be updated with values from sumCSV2.
+2a. Give user option to only update records with the existing value "Needs Grading" in the user-selected assignment field. If enabled, filter gCSV2 to these records.
+2b. Give user the option to set the minimum number of reviews needed for a grade and the count of reviews column (default = "ReviewsCompleted" and minimum = 2). Users should set the Integrity field as well (default = "IntegrityFlagCount"). 
+3. Allow the user to select one of two options: Calculate by Rubric Weighted Categories (calcRubric2 [default selection]) or Average Overall Score (AOS2)
+4a. If calcRubric2, add 4 field selection dropdown boxes (populated with fields from sumCSV2) with the option for the user to remove or add more fields. Next to each dropdown box, include two text boxes; one for entering the total points possible in each category; the second for entering the Weighting (%) of this field. Include a text box at the bottom where the user sets the total points for the assignment on blackboard. Default fields should be AvgScore1: total points1 = 10, Weighting1 = 40%; AvgScore2: total points2 = 10, Weighting2 = 20%; AvgScore3: total points3 = 10, Weighting3 = 20%; AvgScore4: total points4 = 10, Weighting4 = 20%
+-- Use the values from 4a to calculate a weighted point total based on the total points for the assignment on Blackboard. e.g., ((AvgScore1/totalpoints1*weighting1) + (AvgScore2/totalpoints2*weighting2) + (AvgScore3/totalpoints3*weighting3) + (AvgScore4/totalpoints4*weighting4))/100*25 ##please double check my math here
+
+4b. If AOS2 is selected, show one field selection dropdown box (populated with fields from sumCSV2). Default = "AvgScoreOverall"
+--Add a checkbox option to calculate the final grade based on a different point total (on by default)
+--If the calculate final grade option is enabled, show two boxes: Total points possible for the [field selected; e.g., AvgScoreOverall] and the total points possible for the assignment on Blackboard. Defaults: Total Points Possible for Summary Table = 10 ; Total Points Possible for the Assignment = 25.
+--calculate points for Blackboard, e.g., AvgScoreOverall/Total points possible for field *Total BB Points Possible ##please double check this math.
+
+5. Write calculated final points for BB (from 4a or 4b) to the assignment field selected in step 2
+6. Allow user to select the feedback field from the list of fields in sumCSV2 (default: "PeerFeedback")
+7. Give user the option to add universal feedback at the beginning of the feedback field (check box with text box below).
+8. Target = field selected in step 1 for feedback (e.g., Feedback to Learner). If step 7 is enabled, write universal feedback first, then <b> and then append sumCSV2 feedback. If step 7 is disabled, only write sumCSV2 feedback. Any formatting likely needs to be in basic html.
+9. Output the new CSV. Make sure it has all of the same fields as the input gCSV2.
+10. Output an issue CSV of the records that do not meet the minimum number of reviews (step 2b) or records with a RangeFlag or records where IntegrityFlagCount > 0 (include IntegrityNotes). Include TA and Section (user selected fields; default sumCSV2: TA = TAEmail; Section = "Section). Also create separate CSVs by TA (using TA field selected earlier)
+11. Output a CSV of records 
+
+
+
+
+
+Task 3: Peer Review Participation
+Inputs:
+1. Upload option for Gradebook CSV (gCSV3) for Blackboard assignment [required]
+2. Upload option for peer review assignments (assignCSV2)
+3. User selected due date and time (default time set to 23:59:59) (default due date set to the previous Friday)
+4. Select Join field from prlistCSV3 (default = Token); 
+
+Task 2 Notes:
+
+3. Upload option for raw Peer Reviews CSV (rawCSV2) from MS Form results
+4. Upload option for crosswalk CSV (xCSV2) between rawCSV2 and graded student username.
+Either sumCSV2 or rawCSV2 and xCSV2 are required.
+
+Processing for gCSV2+rawCSV2+xCSV2:
+If input is gCSV2 and rawCSV2 and xCSV2
+1. Join xCSV2 to rawCSV2 using user selected fields. default: rawCSV2 = "PaperKey" ; xCSV2 = "AnonKey". new join CSV =xrawCSV2
+2. User should select unique identifier (default: "Username")
+3. Allow users to select score fields to Average and feedback field
+Default fields: AvgScore1 = "Comprehensiveness of Content	"
+AvgScore2 = "Organization and Structure"
+AvgScore3 = "Originality and Use of Own Words"
+AvgScore4 = "Accuracy of Information"
+Feedback = "Briefly explain your lowest score (1–2 sentences)."
+
+
+4. Summarize the records by unique identifier, averaging the user-specified fields for the summary table and appending the feedback record (before each feedback record, include "<br><b>Feedback: </b>" and after each record "<br>---<br>" ##please double-check my html here) Do not include feedback that is blank/NULL and make sure "Feedback: " isn't written for these records.
+4. Create a field named "ReviewsComplete" that includes a count of the total number of reviews for each record.
+5. Create a field named "IntegrityFlagCount" that includes a count of the user selected field (default = Academic Integrity Flag) where value <> Not Applicable OR blank/NULL
+5. proceed to Step 1 in Processing for CSV2+sumCSV2 with this new CSV replacing sumCSV2
+
+
+
+I've added examples of the three types of Blackboard grade CSVs, the PeerReviewAssignments.csv, PeerReviewSubmissions.csv, attendance...csv
+all available here: /Users/swk/Documents/Documents-Dauphine/Programming/chatGPT/Projects/Teaching/PeerReviewGrading/samples

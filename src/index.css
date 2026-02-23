@@ -1,0 +1,31 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Avenir Next', 'Trebuchet MS', 'Segoe UI', sans-serif;
+  background:
+    radial-gradient(circle at 8% 8%, rgba(255, 208, 140, 0.35), transparent 28%),
+    radial-gradient(circle at 90% 16%, rgba(144, 224, 212, 0.28), transparent 32%),
+    linear-gradient(175deg, #f1ebdf 0%, #f8f6f0 45%, #e8eef3 100%);
+  color: #1a1f2e;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5 {
+  font-family: 'Rockwell', 'Avenir Next Condensed', 'Trebuchet MS', serif;
+}
+
+a {
+  color: inherit;
+}
