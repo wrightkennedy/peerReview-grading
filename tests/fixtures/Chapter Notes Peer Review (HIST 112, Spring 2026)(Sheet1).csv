@@ -1,0 +1,4 @@
+ReviewToken,PaperKey,Comprehensiveness,Organization,Originality,Accuracy,Briefly explain your lowest score,Did you review the entire outline and provide a fair and reasonable assessment?,Academic Integrity Flag,Please explain your suspicions,Email
+tok-1,ch19-paperA,8,9,9,10,Clear and organized,Yes,Not Applicable,,reviewer1
+tok-2,ch19-paperA,7,8,7,8,Needs stronger thesis,No,Not Applicable,,reviewer2
+tok-3,ch19-paperB,6,6,6,6,Add more evidence,Yes,Possible concern,Very similar phrasing,reviewer3

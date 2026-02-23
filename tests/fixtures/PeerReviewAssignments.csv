@@ -1,0 +1,4 @@
+Token,PaperKey,PaperLink,ReviewerUsername,Chapter,Status,CompletedAt,Fairness
+tok-1,ch19-paperA,/sites/course/docs/paperA,student1,ch19,Completed,02/14/2026 10:00,Yes
+tok-2,ch19-paperA,/sites/course/docs/paperA,student1,ch19,Completed,02/15/2026 10:00,No
+tok-3,ch19-paperB,/sites/course/docs/paperB,student2,ch19,Completed,02/16/2026 10:00,Yes

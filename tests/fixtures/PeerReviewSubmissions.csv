@@ -1,0 +1,3 @@
+Username,Chapter,AnonKey,FileLink,ReviewsCompleted,FairnessNoCount,IntegrityFlagCount,RangeFlag,RangeScore1,RangeScore2,RangeScore3,RangeScore4,PeerFeedback,IntegrityNotes,TAEmail,Section,AvgScore1,AvgScore2,AvgScore3,AvgScore4,AvgScoreOverall
+student1,ch19,ch19-paperA,/sites/course/docs/paperA,3,0,0,False,1,1,1,1,Strong analysis.,,ta1,001,8,9,9,10,9
+student2,ch19,ch19-paperB,/sites/course/docs/paperB,1,0,1,True,4,0,0,0,Please expand evidence.,Potential citation issue,ta2,002,6,6,6,6,6
