@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DateTime } from 'luxon';
 import { processTask3, processTask3Raw } from '../src/processors/task3';
 import { defaultTask3Config, defaultTask3RawConfig } from '../src/lib/defaults';
+import { parseCsvText } from '../src/lib/csvCore';
 import { loadSampleCsv } from './helpers';
 import type { CsvTable } from '../src/types';
 
@@ -216,5 +217,51 @@ describe('Task 3 processor', () => {
     expect(result.errors).toEqual([]);
     expect(result.preview.updatedRows).toBe(1);
     expect(result.issueRows.some((row) => row.Reason === 'fairness-no-reviews')).toBe(true);
+  });
+
+  it('can assign 0 with feedback when no reviews are assigned', () => {
+    const gradebook: CsvTable = {
+      sourceName: 'gradebook.csv',
+      headers: ['Student ID', 'Username', 'ch19 [Total Pts: 15 Score]', 'Feedback to Learner'],
+      rows: [
+        {
+          'Student ID': '99999',
+          Username: 'no_assignments_student',
+          'ch19 [Total Pts: 15 Score]': 'Needs Grading',
+          'Feedback to Learner': '',
+        },
+      ],
+      formatMeta: { delimiter: ',', newline: '\n', hasBom: false, quoteChar: '"' },
+    };
+
+    const assignments: CsvTable = {
+      sourceName: 'assignments.csv',
+      headers: ['ReviewerUsername', 'Chapter', 'Status', 'CompletedAt', 'Fairness'],
+      rows: [],
+      formatMeta: { delimiter: ',', newline: '\n', hasBom: false, quoteChar: '"' },
+    };
+
+    const config = defaultTask3Config(gradebook, assignments);
+    config.assignZeroWhenNoAssignedReviews = true;
+    config.chapterFilterEnabled = false;
+    config.classScheduleEnabled = false;
+
+    const result = processTask3(gradebook, assignments, null, config);
+    expect(result.errors).toEqual([]);
+    expect(result.preview.updatedRows).toBe(1);
+    expect(result.issueRows.some((row) => row.Reason === 'no-assigned-reviews')).toBe(true);
+
+    const outputText =
+      result.files.find(
+        (file) =>
+          file.fileName.includes('PeerReviewParticipation') && file.fileName.endsWith('.csv'),
+      )?.content ?? '';
+    const outputParsed = parseCsvText(outputText, 'output.csv');
+    expect(outputParsed.rows[0]['ch19 [Total Pts: 15 Score]']).toBe('0');
+    expect(
+      outputText.includes(
+        'No reviews assigned due to missing chapter notes. If you feel this is a mistake, please contact your TA.',
+      ),
+    ).toBe(true);
   });
 });

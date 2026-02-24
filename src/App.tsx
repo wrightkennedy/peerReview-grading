@@ -571,6 +571,32 @@ function App() {
         ? task2Result
         : task3Result;
 
+  const interfaceWarnings = useMemo(() => {
+    const warnings: string[] = [];
+    if (activeTask === 'attendance_verification' && task1Gradebook) {
+      if (!hasHeader(task1Gradebook, 'Feedback to Learner')) {
+        warnings.push(
+          'Task 1: Gradebook CSV is missing "Feedback to Learner". Select a valid feedback field in Step 2 or re-export the Blackboard gradebook with feedback columns.',
+        );
+      }
+    }
+    if (activeTask === 'peer_review_summary' && task2Gradebook) {
+      if (!hasHeader(task2Gradebook, 'Feedback to Learner')) {
+        warnings.push(
+          'Task 2: Gradebook CSV is missing "Feedback to Learner". Select a valid feedback field in Step 2 or re-export the Blackboard gradebook with feedback columns.',
+        );
+      }
+    }
+    if (activeTask === 'peer_review_participation' && task3Gradebook) {
+      if (!hasHeader(task3Gradebook, 'Feedback to Learner')) {
+        warnings.push(
+          'Task 3: Gradebook CSV is missing "Feedback to Learner". Select a valid feedback field in Step 2 or re-export the Blackboard gradebook with feedback columns.',
+        );
+      }
+    }
+    return warnings;
+  }, [activeTask, task1Gradebook, task2Gradebook, task3Gradebook]);
+
   return (
     <div className="app-shell">
       <header>
@@ -611,6 +637,17 @@ function App() {
           <ul>
             {globalErrors.map((error) => (
               <li key={error}>{error}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {interfaceWarnings.length > 0 ? (
+        <section className="warnings">
+          <h2>Interface Warnings</h2>
+          <ul>
+            {interfaceWarnings.map((warning) => (
+              <li key={warning}>{warning}</li>
             ))}
           </ul>
         </section>
@@ -710,31 +747,58 @@ function App() {
               <span className="step-title">Step 3: Parameters</span>
             </summary>
             <div className="wizard-step-body">
-            <label className="field-select">
-              <span>Feedback Write Mode</span>
-              <select
-                value={task1Config.feedbackWriteMode}
-                onChange={(event) =>
-                  setTask1Config((prev) => ({
-                    ...prev,
-                    feedbackWriteMode: event.target.value as Task1Config['feedbackWriteMode'],
-                  }))
-                }
-              >
-                <option value="append">Append</option>
-                <option value="overwrite">Overwrite</option>
-              </select>
-            </label>
-            <label className="field-select">
-              <span>Feedback Template (HTML allowed)</span>
-              <textarea
-                rows={4}
-                value={task1Config.feedbackTemplate}
-                onChange={(event) =>
-                  setTask1Config((prev) => ({ ...prev, feedbackTemplate: event.target.value }))
-                }
-              />
-            </label>
+              <label className="checkbox-line">
+                <input
+                  type="checkbox"
+                  checked={task1Config.gradeByAttendancePresence}
+                  onChange={(event) =>
+                    setTask1Config((prev) => ({
+                      ...prev,
+                      gradeByAttendancePresence: event.target.checked,
+                    }))
+                  }
+                />
+                Grade all rows by attendance presence (found in attendance CSV = full points, not
+                found = 0)
+              </label>
+              <label className="field-select">
+                <span>Attendance full points</span>
+                <input
+                  type="number"
+                  value={task1Config.attendancePoints}
+                  onChange={(event) =>
+                    setTask1Config((prev) => ({
+                      ...prev,
+                      attendancePoints: parseNumberInput(event.target.value, prev.attendancePoints),
+                    }))
+                  }
+                />
+              </label>
+              <label className="field-select">
+                <span>Feedback Write Mode</span>
+                <select
+                  value={task1Config.feedbackWriteMode}
+                  onChange={(event) =>
+                    setTask1Config((prev) => ({
+                      ...prev,
+                      feedbackWriteMode: event.target.value as Task1Config['feedbackWriteMode'],
+                    }))
+                  }
+                >
+                  <option value="append">Append</option>
+                  <option value="overwrite">Overwrite</option>
+                </select>
+              </label>
+              <label className="field-select">
+                <span>Feedback Template (HTML allowed)</span>
+                <textarea
+                  rows={4}
+                  value={task1Config.feedbackTemplate}
+                  onChange={(event) =>
+                    setTask1Config((prev) => ({ ...prev, feedbackTemplate: event.target.value }))
+                  }
+                />
+              </label>
             </div>
           </details>
 
@@ -1848,6 +1912,19 @@ function App() {
                     }))
                   }
                 />
+              </label>
+              <label className="checkbox-line">
+                <input
+                  type="checkbox"
+                  checked={task3Config.assignZeroWhenNoAssignedReviews}
+                  onChange={(event) =>
+                    setTask3Config((prev) => ({
+                      ...prev,
+                      assignZeroWhenNoAssignedReviews: event.target.checked,
+                    }))
+                  }
+                />
+                Assign 0 when no reviews are assigned for the selected chapter
               </label>
               <label className="field-select">
                 <span>Late penalty (%)</span>

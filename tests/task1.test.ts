@@ -25,4 +25,39 @@ describe('Task 1 processor', () => {
     expect(parsedOutput.headers).toEqual(gradebook.headers);
     expect(parsedOutput.rows.length).toBe(gradebook.rows.length);
   });
+
+  it('can grade all rows by attendance presence with configurable full points', () => {
+    const gradebook = parseCsvText(
+      [
+        'Student ID,Username,Feedback to Learner,ch19 Discussion [Total Pts: 5 Score]',
+        '1001,student1,,Needs Grading',
+        '1002,student2,,Needs Grading',
+      ].join('\n'),
+      'gradebook.csv',
+    );
+    const attendance = parseCsvText(
+      [
+        'username,status',
+        'student1,Present',
+      ].join('\n'),
+      'attendance.csv',
+    );
+
+    const config = defaultTask1Config(gradebook, attendance);
+    config.gradeByAttendancePresence = true;
+    config.attendancePoints = 5;
+
+    const result = processTask1(gradebook, attendance, config);
+    expect(result.errors).toEqual([]);
+    expect(result.preview.updatedRows).toBe(2);
+
+    const mainFile = result.files.find((file) => file.fileName.endsWith('.csv'));
+    expect(mainFile).toBeDefined();
+    const parsedOutput = parseCsvText(mainFile!.content, 'output.csv');
+
+    const student1 = parsedOutput.rows.find((row) => row.Username === 'student1');
+    const student2 = parsedOutput.rows.find((row) => row.Username === 'student2');
+    expect(student1?.['ch19 Discussion [Total Pts: 5 Score]']).toBe('5');
+    expect(student2?.['ch19 Discussion [Total Pts: 5 Score]']).toBe('0');
+  });
 });

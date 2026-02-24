@@ -42,11 +42,13 @@ export function defaultTask1Config(
     feedbackField: pickHeader(
       gradebookHeaders,
       'Feedback to Learner',
-      gradebookHeaders[0] ?? '',
+      '',
     ),
     feedbackWriteMode: 'append',
     feedbackTemplate:
       'No attendance recorded.<br>If you did swipe in with your Carolina Card, please register your card with a TA in the next lecture class. We will ensure you receive credit for this assignment.',
+    gradeByAttendancePresence: false,
+    attendancePoints: 5,
   };
 }
 
@@ -71,7 +73,7 @@ export function defaultTask2SharedConfig(
     gradebookFeedbackField: pickHeader(
       gradebookHeaders,
       'Feedback to Learner',
-      gradebookHeaders[0] ?? '',
+      '',
     ),
     feedbackSourceField: pickHeader(summaryHeaders, 'PeerFeedback', 'PeerFeedback'),
     feedbackWriteMode: 'append',
@@ -229,11 +231,12 @@ export function defaultTask3Config(
     feedbackField: pickHeader(
       gradebookHeaders,
       'Feedback to Learner',
-      gradebookHeaders[0] ?? '',
+      '',
     ),
     feedbackWriteMode: 'append',
     requiredReviews: 3,
     assignmentPoints: 15,
+    assignZeroWhenNoAssignedReviews: false,
     latePenaltyPercent: 10,
     statusField: pickHeader(assignmentHeaders, 'Status', assignmentHeaders[0] ?? ''),
     completedAtField: pickHeader(

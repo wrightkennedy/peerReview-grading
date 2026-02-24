@@ -22,7 +22,7 @@ import {
   trackChange,
   writeFeedbackField,
 } from './common';
-import { buildUniqueIndex } from '../lib/join';
+import { buildGroupedIndex, buildUniqueIndex } from '../lib/join';
 import { buildAudit, incrementReason } from '../lib/audit';
 import { makeCsvFile, makeJsonFile } from '../lib/download';
 import { auditToPrettyJson } from '../lib/audit';
@@ -203,12 +203,13 @@ function buildSummaryTableFromRaw(
     issueRows.push(createIssueRow(issue));
   };
 
-  const assignmentIndex = buildUniqueIndex(assignments.rows, rawConfig.assignmentsTokenField);
-  if (assignmentIndex.duplicates.size > 0) {
+  const assignmentTokenIndex = buildUniqueIndex(assignments.rows, rawConfig.assignmentsTokenField);
+  if (assignmentTokenIndex.duplicates.size > 0) {
     warnings.push(
-      `Duplicate assignment token keys detected: ${assignmentIndex.duplicates.size}`,
+      `Duplicate assignment token keys detected: ${assignmentTokenIndex.duplicates.size}`,
     );
   }
+  const assignmentByPaperKey = buildGroupedIndex(assignments.rows, rawConfig.assignmentsPaperKeyField);
 
   const ownerIndex = buildUniqueIndex(ownerMap.rows, rawConfig.ownerMapAnonKeyField);
   if (ownerIndex.duplicates.size > 0) {
@@ -222,6 +223,11 @@ function buildSummaryTableFromRaw(
 
   for (const rawRow of raw.rows) {
     const token = normalizeKey(rawRow[rawConfig.rawTokenField]);
+    const assignmentRowByToken =
+      token && !assignmentTokenIndex.duplicates.has(token)
+        ? assignmentTokenIndex.map.get(token)
+        : undefined;
+
     if (!token) {
       pushRawIssue({
         username: '',
@@ -229,64 +235,98 @@ function buildSummaryTableFromRaw(
         details: 'Raw row has empty ReviewToken',
         paperKey: rawRow[rawConfig.rawPaperKeyField] ?? '',
       });
-      continue;
+    } else {
+      if (seenRawTokens.has(token)) {
+        pushRawIssue({
+          username: '',
+          reason: 'duplicate-reviewtoken-submission',
+          details: 'Duplicate raw ReviewToken submission detected. First submission is used.',
+          notes: hasText(rawEmailForNotes(rawRow))
+            ? `Raw email: ${rawEmailForNotes(rawRow)}`
+            : '',
+          paperKey:
+            rawRow[rawConfig.rawPaperKeyField] ??
+            assignmentRowByToken?.[rawConfig.assignmentsPaperKeyField] ??
+            '',
+          paperLink: assignmentRowByToken?.[rawConfig.assignmentsPaperLinkField] ?? '',
+        });
+        continue;
+      }
+      seenRawTokens.add(token);
+
+      if (assignmentTokenIndex.duplicates.has(token)) {
+        pushRawIssue({
+          username: '',
+          reason: 'duplicate-review-token',
+          details: `Token duplicated in assignments: ${token}`,
+          paperKey: rawRow[rawConfig.rawPaperKeyField] ?? '',
+        });
+      } else if (!assignmentRowByToken) {
+        pushRawIssue({
+          username: '',
+          reason: 'token-not-found-in-assignments',
+          details: `Token missing from assignments: ${token}`,
+          notes: hasText(rawEmailForNotes(rawRow))
+            ? `Raw email: ${rawEmailForNotes(rawRow)}`
+            : '',
+          paperKey: rawRow[rawConfig.rawPaperKeyField] ?? '',
+        });
+      }
     }
 
-    if (seenRawTokens.has(token)) {
-      const duplicateAssignment = assignmentIndex.map.get(token);
-      pushRawIssue({
-        username: '',
-        reason: 'duplicate-reviewtoken-submission',
-        details: 'Duplicate raw ReviewToken submission detected. First submission is used.',
-        notes: hasText(rawEmailForNotes(rawRow))
-          ? `Raw email: ${rawEmailForNotes(rawRow)}`
-          : '',
-        paperKey:
-          duplicateAssignment?.[rawConfig.assignmentsPaperKeyField] ??
-          rawRow[rawConfig.rawPaperKeyField] ??
-          '',
-        paperLink: duplicateAssignment?.[rawConfig.assignmentsPaperLinkField] ?? '',
-      });
-      continue;
-    }
-    seenRawTokens.add(token);
-
-    if (assignmentIndex.duplicates.has(token)) {
-      pushRawIssue({
-        username: '',
-        reason: 'duplicate-review-token',
-        details: `Token duplicated in assignments: ${token}`,
-        paperKey: rawRow[rawConfig.rawPaperKeyField] ?? '',
-      });
-      continue;
-    }
-
-    const assignmentRow = assignmentIndex.map.get(token);
-    if (!assignmentRow) {
-      pushRawIssue({
-        username: '',
-        reason: 'token-not-found-in-assignments',
-        details: `Token missing from assignments: ${token}`,
-        notes: hasText(rawEmailForNotes(rawRow))
-          ? `Raw email: ${rawEmailForNotes(rawRow)}`
-          : '',
-        paperKey: rawRow[rawConfig.rawPaperKeyField] ?? '',
-      });
-      continue;
-    }
-
+    const rawPaperKey = rawRow[rawConfig.rawPaperKeyField] ?? '';
     const paperKey =
-      assignmentRow[rawConfig.assignmentsPaperKeyField] || rawRow[rawConfig.rawPaperKeyField] || '';
-    const paperLink = assignmentRow[rawConfig.assignmentsPaperLinkField] || '';
+      rawPaperKey || assignmentRowByToken?.[rawConfig.assignmentsPaperKeyField] || '';
+    if (!hasText(rawPaperKey) && hasText(paperKey)) {
+      pushRawIssue({
+        username: '',
+        reason: 'raw-paperkey-missing-used-assignment',
+        details:
+          'Raw row is missing PaperKey; fallback from assignments was used for owner resolution.',
+        paperKey,
+      });
+    }
+
+    let paperLink = '';
+    const rawPaperLink = rawRow.PaperLink ?? rawRow.paperLink ?? '';
+    if (hasText(rawPaperLink)) {
+      paperLink = rawPaperLink;
+    } else if (assignmentRowByToken) {
+      paperLink = assignmentRowByToken[rawConfig.assignmentsPaperLinkField] ?? '';
+    }
     const normalizedPaperKey = normalizeKey(paperKey);
     if (!normalizedPaperKey) {
       pushRawIssue({
         username: '',
         reason: 'missing-paperkey',
-        details: `Token ${token} has no PaperKey`,
+        details: hasText(token)
+          ? `Token ${token} has no resolvable PaperKey`
+          : 'Raw row has no resolvable PaperKey',
         paperLink,
       });
       continue;
+    }
+
+    const paperKeyAssignments = assignmentByPaperKey.get(normalizedPaperKey) ?? [];
+    if (!hasText(paperLink) && paperKeyAssignments.length > 0) {
+      const uniqueLinks = Array.from(
+        new Set(
+          paperKeyAssignments
+            .map((row) => (row[rawConfig.assignmentsPaperLinkField] ?? '').trim())
+            .filter((value) => hasText(value)),
+        ),
+      );
+      if (uniqueLinks.length > 1) {
+        pushRawIssue({
+          username: '',
+          reason: 'multiple-paperlinks-for-paperkey',
+          details:
+            'Multiple PaperLink values found for this PaperKey in assignments. First value is used.',
+          paperKey,
+          paperLink: uniqueLinks.join(' | '),
+        });
+      }
+      paperLink = uniqueLinks[0] ?? '';
     }
 
     if (ownerIndex.duplicates.has(normalizedPaperKey)) {
@@ -337,8 +377,8 @@ function buildSummaryTableFromRaw(
       existing ?? {
         username,
         chapter,
-        taEmail: ownerRow[rawConfig.ownerMapTaField] ?? '',
-        section: ownerRow[rawConfig.ownerMapSectionField] ?? '',
+        taEmail: '',
+        section: '',
         scoreSums: rawConfig.rawScoreFields.map(() => 0),
         scoreCounts: rawConfig.rawScoreFields.map(() => 0),
         scoreMins: rawConfig.rawScoreFields.map(() => Number.POSITIVE_INFINITY),

@@ -36,8 +36,11 @@ export function processTask1(
   if (!attendance.headers.includes(config.attendanceJoinField)) {
     errors.push(`Attendance join field not found: ${config.attendanceJoinField}`);
   }
-  if (!attendance.headers.includes(config.attendanceStatusField)) {
+  if (!config.gradeByAttendancePresence && !attendance.headers.includes(config.attendanceStatusField)) {
     errors.push(`Attendance status field not found: ${config.attendanceStatusField}`);
+  }
+  if (config.gradeByAttendancePresence && config.attendancePoints < 0) {
+    errors.push('Attendance points must be >= 0 when grading by attendance presence.');
   }
 
   if (errors.length > 0) {
@@ -100,8 +103,36 @@ export function processTask1(
     }
 
     const attendanceRow = attendanceIndex.map.get(normalizedKey);
-    const status = attendanceRow?.[config.attendanceStatusField] ?? '';
+    if (config.gradeByAttendancePresence) {
+      const beforeScore = row[config.assignmentField];
+      const foundInAttendance = Boolean(attendanceRow);
+      row[config.assignmentField] = foundInAttendance ? String(config.attendancePoints) : '0';
 
+      if (!foundInAttendance) {
+        const generatedFeedback = config.feedbackTemplate;
+        const existingFeedback = row[config.feedbackField] ?? '';
+        row[config.feedbackField] = writeFeedbackField(
+          existingFeedback,
+          generatedFeedback,
+          config.feedbackWriteMode,
+        );
+        incrementReason(issueReasons, 'missing-attendance-record');
+      }
+
+      preview.updatedRows += 1;
+      trackChange(preview.sampleChanges, {
+        key: keyForRow(row),
+        field: config.assignmentField,
+        before: beforeScore,
+        after: row[config.assignmentField],
+        note: foundInAttendance
+          ? 'Found attendance record; assigned full attendance points.'
+          : 'No attendance record found; assigned 0 points.',
+      });
+      continue;
+    }
+
+    const status = attendanceRow?.[config.attendanceStatusField] ?? '';
     const targetRow = isNeedsGrading(row[config.assignmentField]);
     const absent = !isPresent(status);
 
@@ -151,8 +182,9 @@ export function processTask1(
     rows: updatedRows,
   };
 
-  const outputName = createMainOutputName(gradebook.sourceName, '_NoAttendance');
-  const auditName = createAuditName(gradebook.sourceName, '_NoAttendance');
+  const outputSuffix = config.gradeByAttendancePresence ? '_AttendanceGrades' : '_NoAttendance';
+  const outputName = createMainOutputName(gradebook.sourceName, outputSuffix);
+  const auditName = createAuditName(gradebook.sourceName, outputSuffix);
 
   const audit = buildAudit({
     task: 'attendance_verification',
@@ -172,6 +204,8 @@ export function processTask1(
     parameters: {
       feedbackWriteMode: config.feedbackWriteMode,
       feedbackTemplateLength: config.feedbackTemplate.length,
+      gradeByAttendancePresence: config.gradeByAttendancePresence,
+      attendancePoints: config.attendancePoints,
     },
     counts: {
       totalRows: preview.totalRows,

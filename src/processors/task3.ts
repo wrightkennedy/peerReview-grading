@@ -34,6 +34,9 @@ import { detectChapterFromAssignmentField, matchesChapter } from '../lib/chapter
 import { roundAndClamp, toFixedScore } from '../lib/math';
 import { parseCompletedAt, toEastern } from '../lib/timezone';
 
+const NO_ASSIGNED_REVIEW_FEEDBACK =
+  'No reviews assigned due to missing chapter notes. If you feel this is a mistake, please contact your TA.';
+
 function parseTimeToMinutes(value: string): number | null {
   const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
   if (!match) {
@@ -347,7 +350,10 @@ export function processTask3(
     }
 
     if (assignedCount === 0) {
-      preview.skippedRows += 1;
+      const details = config.assignZeroWhenNoAssignedReviews
+        ? 'No peer reviews were assigned to this student for the selected chapter. Assigned participation score = 0 based on configuration.'
+        : 'No peer reviews were assigned to this student for the selected chapter. This usually means they did not submit chapter notes for the week. No participation score was written.';
+
       preview.issueRows += 1;
       incrementReason(issueReasons, 'no-assigned-reviews');
       issueRows.push(
@@ -355,13 +361,33 @@ export function processTask3(
           username,
           gradebookIdentifier: identifierValue,
           reason: 'no-assigned-reviews',
-          details:
-            'No peer reviews were assigned to this student for the selected chapter. This usually means they did not submit chapter notes for the week. No participation score was written.',
+          details,
           reviewsCompleted: '0',
           taEmail: ta,
           section,
         }),
       );
+
+      if (!config.assignZeroWhenNoAssignedReviews) {
+        preview.skippedRows += 1;
+        continue;
+      }
+
+      const before = row[config.assignmentField] ?? '';
+      row[config.assignmentField] = '0';
+      row[config.feedbackField] = writeFeedbackField(
+        row[config.feedbackField] ?? '',
+        NO_ASSIGNED_REVIEW_FEEDBACK,
+        config.feedbackWriteMode,
+      );
+      preview.updatedRows += 1;
+      trackChange(preview.sampleChanges, {
+        key: keyForRow(row),
+        field: config.assignmentField,
+        before,
+        after: row[config.assignmentField],
+        note: 'No assigned reviews found; assigned 0 points by configuration.',
+      });
       continue;
     }
 
@@ -511,6 +537,7 @@ export function processTask3(
       chapterValue,
       requiredReviews: config.requiredReviews,
       assignmentPoints: config.assignmentPoints,
+      assignZeroWhenNoAssignedReviews: config.assignZeroWhenNoAssignedReviews,
       latePenaltyPercent: config.latePenaltyPercent,
       dueDateIsoEastern: config.dueDateIsoEastern,
       completedAtTimezoneMode: config.completedAtTimezoneMode,
@@ -872,7 +899,10 @@ export function processTask3Raw(
     }
 
     if (assignedCount === 0) {
-      preview.skippedRows += 1;
+      const details = config.assignZeroWhenNoAssignedReviews
+        ? 'No peer reviews were assigned to this student for the selected chapter. Assigned participation score = 0 based on configuration.'
+        : 'No peer reviews were assigned to this student for the selected chapter. This usually means they did not submit chapter notes for the week. No participation score was written.';
+
       preview.issueRows += 1;
       incrementReason(issueReasons, 'no-assigned-reviews');
       issueRows.push(
@@ -880,13 +910,33 @@ export function processTask3Raw(
           username,
           gradebookIdentifier: identifierValue,
           reason: 'no-assigned-reviews',
-          details:
-            'No peer reviews were assigned to this student for the selected chapter. This usually means they did not submit chapter notes for the week. No participation score was written.',
+          details,
           reviewsCompleted: '0',
           taEmail: ta,
           section,
         }),
       );
+
+      if (!config.assignZeroWhenNoAssignedReviews) {
+        preview.skippedRows += 1;
+        continue;
+      }
+
+      const before = row[config.assignmentField] ?? '';
+      row[config.assignmentField] = '0';
+      row[config.feedbackField] = writeFeedbackField(
+        row[config.feedbackField] ?? '',
+        NO_ASSIGNED_REVIEW_FEEDBACK,
+        config.feedbackWriteMode,
+      );
+      preview.updatedRows += 1;
+      trackChange(preview.sampleChanges, {
+        key: keyForRow(row),
+        field: config.assignmentField,
+        before,
+        after: row[config.assignmentField],
+        note: 'No assigned reviews found; assigned 0 points by configuration.',
+      });
       continue;
     }
 
@@ -1073,6 +1123,7 @@ export function processTask3Raw(
       chapterValue,
       requiredReviews: config.requiredReviews,
       assignmentPoints: config.assignmentPoints,
+      assignZeroWhenNoAssignedReviews: config.assignZeroWhenNoAssignedReviews,
       latePenaltyPercent: config.latePenaltyPercent,
       dueDateIsoEastern: config.dueDateIsoEastern,
       completedAtTimezoneMode: config.completedAtTimezoneMode,

@@ -43,6 +43,8 @@ export interface Task1Config {
   feedbackField: string;
   feedbackWriteMode: FeedbackWriteMode;
   feedbackTemplate: string;
+  gradeByAttendancePresence: boolean;
+  attendancePoints: number;
 }
 
 export interface Task2SharedConfig {
@@ -120,6 +122,7 @@ export interface Task3Config {
   feedbackWriteMode: FeedbackWriteMode;
   requiredReviews: number;
   assignmentPoints: number;
+  assignZeroWhenNoAssignedReviews: boolean;
   latePenaltyPercent: number;
   statusField: string;
   completedAtField: string;
