@@ -1,7 +1,8 @@
 export type TaskType =
   | 'attendance_verification'
   | 'peer_review_summary'
-  | 'peer_review_participation';
+  | 'peer_review_participation'
+  | 'grade_curve';
 
 export type FeedbackWriteMode = 'append' | 'overwrite';
 
@@ -89,6 +90,9 @@ export interface Task2SharedConfig {
   enableManualJoinOverrides: boolean;
   manualJoinIdentifierField: string;
   manualJoinOverridesText: string;
+  curveEnabled: boolean;
+  curvePoints: number;
+  curveAllowExceedMax: boolean;
 }
 
 export interface Task2RawConfig {
@@ -150,6 +154,34 @@ export interface Task3RawConfig {
   assignmentsTokenField: string;
   assignmentsReviewerField: string;
   assignmentsPaperKeyField: string;
+}
+
+export type Task4CurveMode = 'fixed_points' | 'percentage' | 'bell_curve';
+export type Task4FeedbackDisplay = 'points' | 'percentage' | 'both';
+
+export interface BellCurveStats {
+  count: number;
+  mean: number;
+  median: number;
+  stdDev: number;
+  min: number;
+  max: number;
+}
+
+export interface Task4Config {
+  assignmentField: string;
+  feedbackField: string;
+  feedbackWriteMode: FeedbackWriteMode;
+  totalPointsPossible: number;
+  curveMode: Task4CurveMode;
+  curvePoints: number;
+  curvePercent: number;
+  bellCurveTargetMean: number;
+  skipZeros: boolean;
+  skipNoSubmission: boolean;
+  allowExceedMax: boolean;
+  includeCurveFeedback: boolean;
+  feedbackDisplay: Task4FeedbackDisplay;
 }
 
 export interface PreviewChange {

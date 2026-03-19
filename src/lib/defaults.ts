@@ -9,6 +9,7 @@ import type {
   Task2SharedConfig,
   Task3Config,
   Task3RawConfig,
+  Task4Config,
 } from '../types';
 import { getPreviousFridayDueIsoEastern } from './timezone';
 
@@ -149,6 +150,9 @@ export function defaultTask2SharedConfig(
       gradebookHeaders[0] ?? '',
     ),
     manualJoinOverridesText: '',
+    curveEnabled: false,
+    curvePoints: 0,
+    curveAllowExceedMax: false,
   };
 }
 
@@ -292,5 +296,24 @@ export function defaultTask3RawConfig(
       'PaperKey',
       assignmentHeaders[0] ?? '',
     ),
+  };
+}
+
+export function defaultTask4Config(gradebook: CsvTable | null): Task4Config {
+  const headers = gradebook?.headers ?? [];
+  return {
+    assignmentField: findFirstTotalPointsField(headers),
+    feedbackField: pickHeader(headers, 'Feedback to Learner', ''),
+    feedbackWriteMode: 'append',
+    totalPointsPossible: 25,
+    curveMode: 'fixed_points',
+    curvePoints: 0,
+    curvePercent: 0,
+    bellCurveTargetMean: 0,
+    skipZeros: true,
+    skipNoSubmission: true,
+    allowExceedMax: false,
+    includeCurveFeedback: true,
+    feedbackDisplay: 'points',
   };
 }

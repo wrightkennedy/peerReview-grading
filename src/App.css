@@ -361,3 +361,21 @@ footer {
     grid-column: auto;
   }
 }
+
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+}
+
+.stats-table th,
+.stats-table td {
+  border: 1px solid #ddcfb7;
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+}
+
+.stats-table th {
+  background: #f5f0e6;
+  font-weight: 600;
+}

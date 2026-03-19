@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { DateTime } from 'luxon';
 import './App.css';
 import type {
+  BellCurveStats,
   CompletedAtTimezoneMode,
   CsvTable,
   ProcessorResult,
@@ -10,6 +11,7 @@ import type {
   Task2SharedConfig,
   Task3Config,
   Task3RawConfig,
+  Task4Config,
   TaskType,
 } from './types';
 import { parseCsvFile } from './lib/csvWorkerClient';
@@ -19,10 +21,12 @@ import {
   defaultTask2SharedConfig,
   defaultTask3Config,
   defaultTask3RawConfig,
+  defaultTask4Config,
 } from './lib/defaults';
 import { processTask1 } from './processors/task1';
 import { processTask2Raw, processTask2Summary } from './processors/task2';
 import { processTask3, processTask3Raw } from './processors/task3';
+import { computeBellCurveStats, calculateBellCurveShift, processTask4 } from './processors/task4';
 import { FileUpload } from './components/FileUpload';
 import { FieldSelect } from './components/FieldSelect';
 import { PreviewPanel } from './components/PreviewPanel';
@@ -185,6 +189,15 @@ function App() {
     Record<string, string>
   >({});
 
+  // Task 4 state
+  const [task4Gradebook, setTask4Gradebook] = useState<CsvTable | null>(null);
+  const [task4Config, setTask4Config] = useState<Task4Config>(defaultTask4Config(null));
+  const [task4Result, setTask4Result] = useState<ProcessorResult | null>(null);
+  const [task4ParametersOpen, setTask4ParametersOpen] = useState(true);
+  const [task4BellStats, setTask4BellStats] = useState<BellCurveStats | null>(null);
+
+  const task4GradebookHeaders = task4Gradebook?.headers ?? [];
+
   const availableTask1GradebookHeaders = task1Gradebook?.headers ?? [];
   const availableTask1AttendanceHeaders = task1Attendance?.headers ?? [];
 
@@ -332,6 +345,12 @@ function App() {
     setTask3RawConfig(defaultTask3RawConfig(task3Raw, task3Assignments));
     setTask3Result(null);
   }, [task3Raw, task3Assignments]);
+
+  useEffect(() => {
+    setTask4Config(defaultTask4Config(task4Gradebook));
+    setTask4Result(null);
+    setTask4BellStats(null);
+  }, [task4Gradebook]);
 
   useEffect(() => {
     if (!task1Gradebook || !task1Attendance) {
@@ -529,6 +548,37 @@ function App() {
     setTask3Result(result);
   }
 
+  function resetTask4(): void {
+    if (!window.confirm('Reset all Task 4 uploads and parameters?')) {
+      return;
+    }
+    setTask4Gradebook(null);
+    setTask4Config(defaultTask4Config(null));
+    setTask4Result(null);
+    setTask4ParametersOpen(true);
+    setTask4BellStats(null);
+  }
+
+  function runTask4(): void {
+    setGlobalErrors([]);
+    if (isMissingTable(task4Gradebook)) {
+      setGlobalErrors(['Task 4 requires a Gradebook CSV.']);
+      return;
+    }
+    const result = processTask4(task4Gradebook, task4Config);
+    setTask4Result(result);
+  }
+
+  function calculateBellCurve(): void {
+    if (!task4Gradebook) return;
+    const stats = computeBellCurveStats(task4Gradebook.rows, task4Config);
+    setTask4BellStats(stats);
+    if (stats.count > 0 && task4Config.bellCurveTargetMean > stats.mean) {
+      const shift = calculateBellCurveShift(stats, task4Config.bellCurveTargetMean);
+      setTask4Config((prev) => ({ ...prev, curvePoints: shift }));
+    }
+  }
+
   function updateTask2ManualSelection(identifier: string, joinKey: string): void {
     setTask2ManualOverrideSelections((previous) => {
       const next = { ...previous, [identifier]: joinKey };
@@ -569,7 +619,9 @@ function App() {
       ? task1Result
       : activeTask === 'peer_review_summary'
         ? task2Result
-        : task3Result;
+        : activeTask === 'peer_review_participation'
+          ? task3Result
+          : task4Result;
 
   const interfaceWarnings = useMemo(() => {
     const warnings: string[] = [];
@@ -591,6 +643,13 @@ function App() {
       if (!hasHeader(task3Gradebook, 'Feedback to Learner')) {
         warnings.push(
           'Task 3: Gradebook CSV is missing "Feedback to Learner". Select a valid feedback field in Step 2 or re-export the Blackboard gradebook with feedback columns.',
+        );
+      }
+    }
+    if (activeTask === 'grade_curve' && task4Gradebook) {
+      if (task4Config.includeCurveFeedback && !hasHeader(task4Gradebook, 'Feedback to Learner')) {
+        warnings.push(
+          'Task 4: Gradebook CSV is missing "Feedback to Learner". Select a valid feedback field in Step 2 or re-export the Blackboard gradebook with feedback columns.',
         );
       }
     }
@@ -628,6 +687,13 @@ function App() {
           onClick={() => setActiveTask('peer_review_participation')}
         >
           Peer Review Participation
+        </button>
+        <button
+          type="button"
+          className={activeTask === 'grade_curve' ? 'active' : ''}
+          onClick={() => setActiveTask('grade_curve')}
+        >
+          Grade Curve
         </button>
       </nav>
 
@@ -1094,6 +1160,15 @@ function App() {
                     required
                   />
                   <FieldSelect
+                    label="Raw Fairness Field"
+                    options={task2RawHeaders}
+                    value={task2RawConfig.rawFairnessField}
+                    onChange={(value) =>
+                      setTask2RawConfig((prev) => ({ ...prev, rawFairnessField: value }))
+                    }
+                    required
+                  />
+                  <FieldSelect
                     label="Raw Integrity Field"
                     options={task2RawHeaders}
                     value={task2RawConfig.rawIntegrityField}
@@ -1207,9 +1282,10 @@ function App() {
           <details
             className="wizard-step collapsible-step"
             open={task2ParametersOpen}
-            onToggle={(event) =>
-              setTask2ParametersOpen((event.target as HTMLDetailsElement).open)
-            }
+            onToggle={(event) => {
+              if (event.currentTarget === event.target)
+                setTask2ParametersOpen((event.target as HTMLDetailsElement).open);
+            }}
           >
             <summary>
               <span className="step-title">Step 3: Parameters</span>
@@ -1456,9 +1532,10 @@ function App() {
               <details
                 className="rubric-editor collapsible-step"
                 open={task2RubricOpen}
-                onToggle={(event) =>
-                  setTask2RubricOpen((event.target as HTMLDetailsElement).open)
-                }
+                onToggle={(event) => {
+                  event.stopPropagation();
+                  setTask2RubricOpen((event.target as HTMLDetailsElement).open);
+                }}
               >
                 <summary>Rubric Weighted Components</summary>
                 <div className="wizard-step-body">
@@ -1624,6 +1701,58 @@ function App() {
                 </label>
               </div>
             )}
+
+            <div className="grid-two" style={{ marginTop: '1rem' }}>
+              <label className="checkbox-line">
+                <input
+                  type="checkbox"
+                  checked={task2Config.curveEnabled}
+                  onChange={(event) =>
+                    setTask2Config((prev) => ({
+                      ...prev,
+                      curveEnabled: event.target.checked,
+                    }))
+                  }
+                />
+                Add curve points to each student&apos;s final score
+              </label>
+              <label className="field-select">
+                <span>Curve points to add</span>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  value={task2Config.curvePoints}
+                  disabled={!task2Config.curveEnabled}
+                  onChange={(event) =>
+                    setTask2Config((prev) => ({
+                      ...prev,
+                      curvePoints: Math.max(0, parseNumberInput(event.target.value, prev.curvePoints)),
+                    }))
+                  }
+                />
+              </label>
+              <label className="checkbox-line">
+                <input
+                  type="checkbox"
+                  checked={task2Config.curveAllowExceedMax}
+                  disabled={!task2Config.curveEnabled}
+                  onChange={(event) =>
+                    setTask2Config((prev) => ({
+                      ...prev,
+                      curveAllowExceedMax: event.target.checked,
+                    }))
+                  }
+                />
+                <span>
+                  Allow curved score to exceed total possible points
+                  <span className="muted">
+                    {' '}
+                    (bonus territory)
+                  </span>
+                </span>
+              </label>
+            </div>
           </details>
 
           <div className="wizard-step actions">
@@ -1930,11 +2059,13 @@ function App() {
                 <span>Late penalty (%)</span>
                 <input
                   type="number"
+                  min="0"
+                  max="100"
                   value={task3Config.latePenaltyPercent}
                   onChange={(event) =>
                     setTask3Config((prev) => ({
                       ...prev,
-                      latePenaltyPercent: parseNumberInput(event.target.value, prev.latePenaltyPercent),
+                      latePenaltyPercent: Math.min(100, Math.max(0, parseNumberInput(event.target.value, prev.latePenaltyPercent))),
                     }))
                   }
                 />
@@ -2095,6 +2226,334 @@ function App() {
           <div className="wizard-step actions">
             <h3>Step 4: Preview + Export</h3>
             <button type="button" onClick={runTask3}>
+              Run Preview
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {activeTask === 'grade_curve' ? (
+        <section className="task-card">
+          <h2>Task 4: Grade Curve</h2>
+          <div className="task-controls">
+            <button type="button" className="reset-task" onClick={resetTask4}>
+              Reset
+            </button>
+          </div>
+
+          <div className="wizard-step">
+            <h3>Step 1: Upload</h3>
+            <FileUpload
+              label="Blackboard Gradebook CSV"
+              required
+              table={task4Gradebook}
+              onFileSelected={(file) => onUpload(file, setTask4Gradebook)}
+            />
+          </div>
+
+          <div className="wizard-step">
+            <h3>Step 2: Field Mapping</h3>
+            <div className="grid-two">
+              <FieldSelect
+                label="Assignment / Points Field"
+                options={task4GradebookHeaders}
+                value={task4Config.assignmentField}
+                onChange={(value) =>
+                  setTask4Config((prev) => ({ ...prev, assignmentField: value }))
+                }
+                required
+              />
+              <label className="field-select">
+                <span>Total points possible</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={task4Config.totalPointsPossible}
+                  onChange={(event) =>
+                    setTask4Config((prev) => ({
+                      ...prev,
+                      totalPointsPossible: Math.max(0, parseNumberInput(event.target.value, prev.totalPointsPossible)),
+                    }))
+                  }
+                />
+              </label>
+              <FieldSelect
+                label="Feedback Field"
+                options={task4GradebookHeaders}
+                value={task4Config.feedbackField}
+                onChange={(value) =>
+                  setTask4Config((prev) => ({ ...prev, feedbackField: value }))
+                }
+              />
+            </div>
+          </div>
+
+          <details
+            className="wizard-step collapsible-step"
+            open={task4ParametersOpen}
+            onToggle={(event) => {
+              if (event.currentTarget === event.target)
+                setTask4ParametersOpen((event.target as HTMLDetailsElement).open);
+            }}
+          >
+            <summary>
+              <span className="step-title">Step 3: Parameters</span>
+            </summary>
+
+            <label className="field-select">
+              <span>Curve mode</span>
+              <select
+                value={task4Config.curveMode}
+                onChange={(event) =>
+                  setTask4Config((prev) => ({
+                    ...prev,
+                    curveMode: event.target.value as Task4Config['curveMode'],
+                  }))
+                }
+              >
+                <option value="fixed_points">Fixed Points</option>
+                <option value="percentage">Percentage of Total Points</option>
+                <option value="bell_curve">Bell Curve (Target Mean)</option>
+              </select>
+            </label>
+
+            {task4Config.curveMode === 'fixed_points' ? (
+              <div className="grid-two">
+                <label className="field-select">
+                  <span>Points to add</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={task4Config.curvePoints}
+                    onChange={(event) =>
+                      setTask4Config((prev) => ({
+                        ...prev,
+                        curvePoints: Math.max(0, parseNumberInput(event.target.value, prev.curvePoints)),
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+            ) : null}
+
+            {task4Config.curveMode === 'percentage' ? (
+              <div className="grid-two">
+                <label className="field-select">
+                  <span>Curve percentage (%)</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={task4Config.curvePercent}
+                    onChange={(event) =>
+                      setTask4Config((prev) => ({
+                        ...prev,
+                        curvePercent: Math.max(0, parseNumberInput(event.target.value, prev.curvePercent)),
+                      }))
+                    }
+                  />
+                </label>
+                <p className="muted">
+                  {task4Config.curvePercent > 0
+                    ? `${task4Config.curvePercent}% of ${task4Config.totalPointsPossible} pts = +${((task4Config.curvePercent / 100) * task4Config.totalPointsPossible).toFixed(2)} pts`
+                    : 'Enter a percentage to see the equivalent points.'}
+                </p>
+              </div>
+            ) : null}
+
+            {task4Config.curveMode === 'bell_curve' ? (
+              <div className="grid-two">
+                <label className="field-select">
+                  <span>Target mean (points)</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={task4Config.bellCurveTargetMean}
+                    onChange={(event) =>
+                      setTask4Config((prev) => ({
+                        ...prev,
+                        bellCurveTargetMean: Math.max(0, parseNumberInput(event.target.value, prev.bellCurveTargetMean)),
+                      }))
+                    }
+                  />
+                </label>
+                <div>
+                  <button type="button" onClick={calculateBellCurve} disabled={!task4Gradebook}>
+                    Calculate Curve
+                  </button>
+                </div>
+                {task4BellStats ? (
+                  <div className="span-two">
+                    <table className="stats-table">
+                      <thead>
+                        <tr>
+                          <th />
+                          <th>Current</th>
+                          <th>After Curve</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td>Eligible Students</td>
+                          <td>{task4BellStats.count}</td>
+                          <td>{task4BellStats.count}</td>
+                        </tr>
+                        <tr>
+                          <td>Mean</td>
+                          <td>{task4BellStats.mean.toFixed(2)}</td>
+                          <td>
+                            {task4Config.bellCurveTargetMean > task4BellStats.mean
+                              ? task4Config.bellCurveTargetMean.toFixed(2)
+                              : task4BellStats.mean.toFixed(2)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td>Median</td>
+                          <td>{task4BellStats.median.toFixed(2)}</td>
+                          <td>
+                            {(task4BellStats.median + calculateBellCurveShift(task4BellStats, task4Config.bellCurveTargetMean)).toFixed(2)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td>Std Dev</td>
+                          <td>{task4BellStats.stdDev.toFixed(2)}</td>
+                          <td>{task4BellStats.stdDev.toFixed(2)}</td>
+                        </tr>
+                        <tr>
+                          <td>Min</td>
+                          <td>{task4BellStats.min.toFixed(2)}</td>
+                          <td>
+                            {(task4BellStats.min + calculateBellCurveShift(task4BellStats, task4Config.bellCurveTargetMean)).toFixed(2)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td>Max</td>
+                          <td>{task4BellStats.max.toFixed(2)}</td>
+                          <td>
+                            {Math.min(
+                              task4BellStats.max + calculateBellCurveShift(task4BellStats, task4Config.bellCurveTargetMean),
+                              task4Config.allowExceedMax ? Infinity : task4Config.totalPointsPossible,
+                            ).toFixed(2)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td>Curve Shift</td>
+                          <td colSpan={2}>
+                            <strong>
+                              +{calculateBellCurveShift(task4BellStats, task4Config.bellCurveTargetMean).toFixed(2)} pts
+                            </strong>
+                            {task4Config.bellCurveTargetMean <= task4BellStats.mean ? (
+                              <span className="muted">
+                                {' '}(target is at or below current mean; no curve applied)
+                              </span>
+                            ) : null}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="muted span-two">
+                    Upload a gradebook and click &ldquo;Calculate Curve&rdquo; to see current grade
+                    distribution and the computed curve shift.
+                  </p>
+                )}
+              </div>
+            ) : null}
+
+            <div className="grid-two" style={{ marginTop: '1rem' }}>
+              <label className="checkbox-line">
+                <input
+                  type="checkbox"
+                  checked={task4Config.skipZeros}
+                  onChange={(event) =>
+                    setTask4Config((prev) => ({ ...prev, skipZeros: event.target.checked }))
+                  }
+                />
+                Do not curve zero scores
+              </label>
+              <label className="checkbox-line">
+                <input
+                  type="checkbox"
+                  checked={task4Config.skipNoSubmission}
+                  onChange={(event) =>
+                    setTask4Config((prev) => ({ ...prev, skipNoSubmission: event.target.checked }))
+                  }
+                />
+                Do not curve empty / Needs Grading records
+              </label>
+              <label className="checkbox-line">
+                <input
+                  type="checkbox"
+                  checked={task4Config.allowExceedMax}
+                  onChange={(event) =>
+                    setTask4Config((prev) => ({ ...prev, allowExceedMax: event.target.checked }))
+                  }
+                />
+                <span>
+                  Allow curved score to exceed total possible points
+                  <span className="muted"> (bonus territory)</span>
+                </span>
+              </label>
+            </div>
+
+            <div className="grid-two" style={{ marginTop: '1rem' }}>
+              <label className="checkbox-line">
+                <input
+                  type="checkbox"
+                  checked={task4Config.includeCurveFeedback}
+                  onChange={(event) =>
+                    setTask4Config((prev) => ({
+                      ...prev,
+                      includeCurveFeedback: event.target.checked,
+                    }))
+                  }
+                />
+                Include curve information in feedback field
+              </label>
+              {task4Config.includeCurveFeedback ? (
+                <>
+                  <label className="field-select">
+                    <span>Feedback display format</span>
+                    <select
+                      value={task4Config.feedbackDisplay}
+                      onChange={(event) =>
+                        setTask4Config((prev) => ({
+                          ...prev,
+                          feedbackDisplay: event.target.value as Task4Config['feedbackDisplay'],
+                        }))
+                      }
+                    >
+                      <option value="points">Points (e.g., +2.00 points)</option>
+                      <option value="percentage">Percentage (e.g., +8.0%)</option>
+                      <option value="both">Both (e.g., +2.00 points / +8.0%)</option>
+                    </select>
+                  </label>
+                  <label className="field-select">
+                    <span>Feedback write mode</span>
+                    <select
+                      value={task4Config.feedbackWriteMode}
+                      onChange={(event) =>
+                        setTask4Config((prev) => ({
+                          ...prev,
+                          feedbackWriteMode: event.target.value as Task4Config['feedbackWriteMode'],
+                        }))
+                      }
+                    >
+                      <option value="append">Append</option>
+                      <option value="overwrite">Overwrite</option>
+                    </select>
+                  </label>
+                </>
+              ) : null}
+            </div>
+          </details>
+
+          <div className="wizard-step actions">
+            <h3>Step 4: Preview + Export</h3>
+            <button type="button" onClick={runTask4}>
               Run Preview
             </button>
           </div>

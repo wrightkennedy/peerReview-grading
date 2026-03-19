@@ -467,7 +467,7 @@ function buildSummaryTableFromRaw(
       if (count === 0) {
         return '';
       }
-      return roundToTwoDecimals(aggregate.scoreSums[index] / count).toFixed(3);
+      return roundToTwoDecimals(aggregate.scoreSums[index] / count).toFixed(2);
     });
 
     const numericAverages = averages
@@ -479,7 +479,7 @@ function buildSummaryTableFromRaw(
         return '';
       }
       const range = aggregate.scoreMaxs[index] - aggregate.scoreMins[index];
-      return roundToTwoDecimals(range).toFixed(3);
+      return roundToTwoDecimals(range).toFixed(2);
     });
     const hasRangeFlag = rangeScores.some((value) => {
       const parsed = parseNumber(value);
@@ -489,7 +489,7 @@ function buildSummaryTableFromRaw(
       numericAverages.length > 0
         ? roundToTwoDecimals(
             numericAverages.reduce((acc, value) => acc + value, 0) / numericAverages.length,
-          ).toFixed(3)
+          ).toFixed(2)
         : '';
 
     const paperKeys = Array.from(aggregate.paperKeys).sort((a, b) => a.localeCompare(b));
@@ -913,8 +913,54 @@ function processTask2SummaryCore(
       !config.includeFairnessFlaggedReviewsInScoreCalculation &&
       reviewsCompleted > 0
     ) {
+      if (fairnessNoCount >= reviewsCompleted) {
+        preview.skippedRows += 1;
+        preview.issueRows += 1;
+        incrementReason(issueReasons, 'all-reviews-unfair');
+        issueRows.push(
+          createIssueRow({
+            username,
+            gradebookIdentifier: identifierValue,
+            reason: 'all-reviews-unfair',
+            details: `All ${fairnessNoCount} review(s) received were marked unfair. No score was assigned; manual review is required.`,
+            notes: `Computed score before fairness adjustment: ${score.value}`,
+            paperKey,
+            paperLink,
+            reviewsCompleted: summaryRow[config.reviewsCompletedField],
+            rangeFlag: config.rangeFlagField ? summaryRow[config.rangeFlagField] : '',
+            rangeScore1: rangeScoreValues[0] ?? '',
+            rangeScore2: rangeScoreValues[1] ?? '',
+            rangeScore3: rangeScoreValues[2] ?? '',
+            rangeScore4: rangeScoreValues[3] ?? '',
+            integrityFlagCount: summaryRow[config.integrityField],
+            integrityNotes: config.integrityNotesField
+              ? summaryRow[config.integrityNotesField]
+              : '',
+            peerFeedback: summaryRow[config.feedbackSourceField] ?? '',
+            taEmail: ta,
+            section,
+          }),
+        );
+        continue;
+      }
       const fairFraction = Math.max(reviewsCompleted - fairnessNoCount, 0) / reviewsCompleted;
       finalScoreValue = roundToTwoDecimals(score.value * fairFraction);
+    }
+
+    let curveApplied = 0;
+    if (config.curveEnabled && config.curvePoints !== 0) {
+      const preCurveValue = finalScoreValue;
+      finalScoreValue = roundToTwoDecimals(finalScoreValue + config.curvePoints);
+      if (!config.curveAllowExceedMax) {
+        const maxPoints =
+          config.scoringMode === 'rubric_weighted'
+            ? config.rubricAssignmentPoints
+            : config.overallAssignmentPoints;
+        finalScoreValue = clamp(finalScoreValue, 0, maxPoints);
+      } else {
+        finalScoreValue = Math.max(finalScoreValue, 0);
+      }
+      curveApplied = roundToTwoDecimals(finalScoreValue - preCurveValue);
     }
 
     const before = row[config.assignmentField] ?? '';
@@ -922,6 +968,12 @@ function processTask2SummaryCore(
 
     const summaryFeedback = summaryRow[config.feedbackSourceField] ?? '';
     let generatedFeedback = summaryFeedback;
+    if (config.curveEnabled && curveApplied !== 0) {
+      const curveNote = `[Curve applied: +${toFixedScore(curveApplied)} points]`;
+      generatedFeedback = hasText(generatedFeedback)
+        ? `${generatedFeedback}<br>${curveNote}`
+        : curveNote;
+    }
     if (config.addUniversalFeedback && hasText(config.universalFeedback)) {
       generatedFeedback = hasText(summaryFeedback)
         ? `${config.universalFeedback}<br><b>Peer Review Feedback:</b><br>${summaryFeedback}`
@@ -1047,6 +1099,9 @@ function processTask2SummaryCore(
       manualJoinOverridesEnabled: config.enableManualJoinOverrides,
       manualJoinOverridesProvided: manualOverrides.size,
       manualJoinOverridesUsed: manualOverrideUsedCount,
+      curveEnabled: config.curveEnabled,
+      curvePoints: config.curvePoints,
+      curveAllowExceedMax: config.curveAllowExceedMax,
     },
     counts: {
       totalRows: preview.totalRows,
