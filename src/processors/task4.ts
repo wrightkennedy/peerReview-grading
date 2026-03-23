@@ -20,7 +20,7 @@ import { buildAudit } from '../lib/audit';
 import { auditToPrettyJson } from '../lib/audit';
 import { makeCsvFile, makeJsonFile } from '../lib/download';
 import { clamp, parseNumber, roundToTwoDecimals, toFixedScore } from '../lib/math';
-import { hasText, isNeedsGrading } from '../lib/text';
+import { containsManualGradeTag, hasText, isNeedsGrading } from '../lib/text';
 
 /**
  * Determines if a row should be skipped from curving.
@@ -45,6 +45,10 @@ function shouldSkipRow(
     return 'zero-score';
   }
 
+  if (config.skipTagged && containsManualGradeTag(row[config.feedbackField], config.skipTag)) {
+    return 'tagged-skip';
+  }
+
   return null;
 }
 
@@ -62,7 +66,8 @@ export function computeBellCurveStats(
     if (!hasText(rawValue) || isNeedsGrading(rawValue)) continue;
     const score = parseNumber(rawValue);
     if (score === null) continue;
-    if (score === 0) continue;
+    if (config.skipZeros && score === 0) continue;
+    if (config.skipTagged && containsManualGradeTag(row[config.feedbackField], config.skipTag)) continue;
     scores.push(score);
   }
 
@@ -285,6 +290,8 @@ export function processTask4(
       totalPointsPossible: config.totalPointsPossible,
       skipZeros: config.skipZeros,
       skipNoSubmission: config.skipNoSubmission,
+      skipTagged: config.skipTagged,
+      skipTag: config.skipTag,
       allowExceedMax: config.allowExceedMax,
       includeCurveFeedback: config.includeCurveFeedback,
       feedbackDisplay: config.feedbackDisplay,

@@ -27,6 +27,7 @@ import { buildAudit, incrementReason } from '../lib/audit';
 import { makeCsvFile, makeJsonFile } from '../lib/download';
 import { auditToPrettyJson } from '../lib/audit';
 import {
+  containsManualGradeTag,
   equalsNormalized,
   hasText,
   isNeedsGrading,
@@ -948,7 +949,8 @@ function processTask2SummaryCore(
     }
 
     let curveApplied = 0;
-    if (config.curveEnabled && config.curvePoints !== 0) {
+    const hasSkipTag = containsManualGradeTag(row[config.gradebookFeedbackField], config.curveSkipTag);
+    if (config.curveEnabled && config.curvePoints !== 0 && !(config.curveSkipTagged && hasSkipTag)) {
       const preCurveValue = finalScoreValue;
       finalScoreValue = roundToTwoDecimals(finalScoreValue + config.curvePoints);
       if (!config.curveAllowExceedMax) {
@@ -969,7 +971,8 @@ function processTask2SummaryCore(
     const summaryFeedback = summaryRow[config.feedbackSourceField] ?? '';
     let generatedFeedback = summaryFeedback;
     if (config.curveEnabled && curveApplied !== 0) {
-      const curveNote = `[Curve applied: +${toFixedScore(curveApplied)} points]`;
+      const sign = curveApplied >= 0 ? '+' : '';
+      const curveNote = `[Curve applied: ${sign}${toFixedScore(curveApplied)} points]`;
       generatedFeedback = hasText(generatedFeedback)
         ? `${generatedFeedback}<br>${curveNote}`
         : curveNote;

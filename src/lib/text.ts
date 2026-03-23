@@ -66,6 +66,15 @@ export function shortDisplay(value: string, maxLength = 96): string {
   return `${value.slice(0, maxLength - 3)}...`;
 }
 
+export function containsManualGradeTag(
+  value: string | undefined | null,
+  tag: string,
+): boolean {
+  if (!tag) return false;
+  const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(escaped, 'i').test(value ?? '');
+}
+
 export function normalizePaperLink(value: string | undefined | null): string {
   const raw = (value ?? '').trim();
   if (!raw) {

@@ -42,6 +42,8 @@ function baseConfig(overrides: Partial<Task4Config> = {}): Task4Config {
     bellCurveTargetMean: 0,
     skipZeros: true,
     skipNoSubmission: true,
+    skipTagged: true,
+    skipTag: '[TA Graded]',
     allowExceedMax: false,
     includeCurveFeedback: true,
     feedbackDisplay: 'points',
@@ -184,18 +186,24 @@ describe('Task 4: bell curve', () => {
     expect(stats.stdDev).toBeGreaterThan(0);
   });
 
-  it('always excludes zeros and Needs Grading from statistics', () => {
+  it('always excludes Needs Grading from statistics but respects skipZeros', () => {
     const gb = makeGradebook([
       { username: 'alice', score: '20' },
       { username: 'bob', score: '0' },
       { username: 'charlie', score: '22' },
       { username: 'diana', score: 'Needs Grading' },
     ]);
-    const config = baseConfig({ skipZeros: false, skipNoSubmission: false });
-    const stats = computeBellCurveStats(gb.rows, config);
+    // skipZeros off: zeros included in stats, Needs Grading always excluded
+    const configIncludeZeros = baseConfig({ skipZeros: false, skipNoSubmission: false });
+    const statsWithZeros = computeBellCurveStats(gb.rows, configIncludeZeros);
+    expect(statsWithZeros.count).toBe(3); // alice, bob, charlie
+    expect(statsWithZeros.mean).toBe(14); // (20+0+22)/3 = 14
 
-    expect(stats.count).toBe(2);
-    expect(stats.mean).toBe(21);
+    // skipZeros on: zeros excluded from stats
+    const configSkipZeros = baseConfig({ skipZeros: true, skipNoSubmission: false });
+    const statsNoZeros = computeBellCurveStats(gb.rows, configSkipZeros);
+    expect(statsNoZeros.count).toBe(2); // alice, charlie
+    expect(statsNoZeros.mean).toBe(21); // (20+22)/2 = 21
   });
 
   it('calculates positive shift when target is above mean', () => {
@@ -291,6 +299,65 @@ describe('Task 4: feedback', () => {
     const mainCsv = result.files.find((f) => f.fileName.endsWith('.csv'));
     const table = parseCsvText(mainCsv!.content, 'out.csv');
     expect(table.rows[0][FEEDBACK]).toBe('');
+  });
+});
+
+/* ---------- TA Graded exclusion ---------- */
+
+describe('Task 4: TA Graded exclusion', () => {
+  const ASSIGN = 'Grade [Total Pts]';
+
+  it('skips TA-graded records by default', () => {
+    const gb = makeGradebook([
+      { username: 'alice', score: '20', feedback: 'Some feedback [TA Graded] notes' },
+      { username: 'bob', score: '18', feedback: 'Regular feedback' },
+    ]);
+    const config = baseConfig({ curvePoints: 2 });
+    const result = processTask4(gb, config);
+
+    expect(result.preview.updatedRows).toBe(1);
+    expect(result.preview.skippedRows).toBe(1);
+    const scores = extractScores(result, ASSIGN);
+    expect(scores[0]).toBe('20');  // alice unchanged
+    expect(scores[1]).toBe('20.00');  // bob curved
+  });
+
+  it('is case insensitive for tag matching', () => {
+    const gb = makeGradebook([
+      { username: 'alice', score: '20', feedback: '[ta graded]' },
+      { username: 'bob', score: '20', feedback: '[TA GRADED]' },
+      { username: 'charlie', score: '20', feedback: '[Ta Graded]' },
+    ]);
+    const config = baseConfig({ curvePoints: 2 });
+    const result = processTask4(gb, config);
+
+    expect(result.preview.updatedRows).toBe(0);
+    expect(result.preview.skippedRows).toBe(3);
+  });
+
+  it('curves tagged records when skipTagged is off', () => {
+    const gb = makeGradebook([
+      { username: 'alice', score: '20', feedback: '[TA Graded]' },
+    ]);
+    const config = baseConfig({ curvePoints: 2, skipTagged: false });
+    const result = processTask4(gb, config);
+
+    expect(result.preview.updatedRows).toBe(1);
+    expect(extractScores(result, ASSIGN)).toEqual(['22.00']);
+  });
+
+  it('excludes TA-graded from bell curve statistics', () => {
+    const gb = makeGradebook([
+      { username: 'alice', score: '20', feedback: '[TA Graded]' },
+      { username: 'bob', score: '10' },
+      { username: 'charlie', score: '14' },
+    ]);
+    const config = baseConfig({ skipTagged: true });
+    const stats = computeBellCurveStats(gb.rows, config);
+
+    // alice (20) excluded, mean should be (10+14)/2 = 12
+    expect(stats.count).toBe(2);
+    expect(stats.mean).toBe(12);
   });
 });
 

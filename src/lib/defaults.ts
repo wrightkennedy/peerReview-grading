@@ -153,6 +153,8 @@ export function defaultTask2SharedConfig(
     curveEnabled: false,
     curvePoints: 0,
     curveAllowExceedMax: false,
+    curveSkipTagged: true,
+    curveSkipTag: '[TA Graded]',
   };
 }
 
@@ -312,6 +314,8 @@ export function defaultTask4Config(gradebook: CsvTable | null): Task4Config {
     bellCurveTargetMean: 0,
     skipZeros: true,
     skipNoSubmission: true,
+    skipTagged: true,
+    skipTag: '[TA Graded]',
     allowExceedMax: false,
     includeCurveFeedback: true,
     feedbackDisplay: 'points',

@@ -1752,6 +1752,34 @@ function App() {
                   </span>
                 </span>
               </label>
+              <label className="checkbox-line">
+                <input
+                  type="checkbox"
+                  checked={task2Config.curveSkipTagged}
+                  disabled={!task2Config.curveEnabled}
+                  onChange={(event) =>
+                    setTask2Config((prev) => ({
+                      ...prev,
+                      curveSkipTagged: event.target.checked,
+                    }))
+                  }
+                />
+                Do not curve records with tag in feedback
+              </label>
+              <label className="field-select">
+                <span>Skip tag</span>
+                <input
+                  type="text"
+                  value={task2Config.curveSkipTag}
+                  disabled={!task2Config.curveEnabled || !task2Config.curveSkipTagged}
+                  onChange={(event) =>
+                    setTask2Config((prev) => ({
+                      ...prev,
+                      curveSkipTag: event.target.value,
+                    }))
+                  }
+                />
+              </label>
             </div>
           </details>
 
@@ -2483,6 +2511,27 @@ function App() {
                   }
                 />
                 Do not curve empty / Needs Grading records
+              </label>
+              <label className="checkbox-line">
+                <input
+                  type="checkbox"
+                  checked={task4Config.skipTagged}
+                  onChange={(event) =>
+                    setTask4Config((prev) => ({ ...prev, skipTagged: event.target.checked }))
+                  }
+                />
+                Do not curve records with tag in feedback
+              </label>
+              <label className="field-select">
+                <span>Skip tag</span>
+                <input
+                  type="text"
+                  value={task4Config.skipTag}
+                  disabled={!task4Config.skipTagged}
+                  onChange={(event) =>
+                    setTask4Config((prev) => ({ ...prev, skipTag: event.target.value }))
+                  }
+                />
               </label>
               <label className="checkbox-line">
                 <input

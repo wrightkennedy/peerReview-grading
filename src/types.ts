@@ -93,6 +93,8 @@ export interface Task2SharedConfig {
   curveEnabled: boolean;
   curvePoints: number;
   curveAllowExceedMax: boolean;
+  curveSkipTagged: boolean;
+  curveSkipTag: string;
 }
 
 export interface Task2RawConfig {
@@ -179,6 +181,8 @@ export interface Task4Config {
   bellCurveTargetMean: number;
   skipZeros: boolean;
   skipNoSubmission: boolean;
+  skipTagged: boolean;
+  skipTag: string;
   allowExceedMax: boolean;
   includeCurveFeedback: boolean;
   feedbackDisplay: Task4FeedbackDisplay;

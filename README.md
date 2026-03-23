@@ -11,6 +11,8 @@ Local-first browser app for Teaching Assistants to process Blackboard gradebook 
 3. **Task 3: Peer Review Participation**
    - Assignments mode
    - Raw mode
+4. **Task 4: Grade Curve**
+   - Fixed points, percentage, or bell curve (target mean) modes
 
 ## Core guarantees
 
@@ -80,6 +82,32 @@ Local-first browser app for Teaching Assistants to process Blackboard gradebook 
 - Issues CSV
 - Per-TA issues CSV files
 - Audit JSON
+
+### Task 4: Grade Curve
+
+Apply a grading curve to any Blackboard gradebook assignment retroactively.
+
+**Required inputs**
+- Blackboard Gradebook CSV
+
+**Curve modes**
+- **Fixed points**: add a set number of points to each student's score.
+- **Percentage**: add a percentage of the total points possible.
+- **Bell curve (target mean)**: calculate the shift needed to raise the class mean to a target value. Only curves upward (guardrail). Click "Calculate Curve" to preview current and projected statistics before applying.
+
+**Options**
+- Skip zero scores (default on).
+- Skip empty / Needs Grading records (default on).
+- Skip records with a configurable feedback tag, e.g. `[TA Graded]` (default on).
+- Allow curved score to exceed total possible points (default off).
+- Include curve information in feedback field (points, percentage, or both).
+
+**Outputs**
+- Updated Blackboard CSV (ready for re-upload)
+- Audit JSON
+
+**Curve in Task 2**
+Task 2 also supports a fixed-points curve in Step 3: Parameters with the same tag-skip and exceed-max options.
 
 ## Quick start
 

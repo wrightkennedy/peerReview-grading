@@ -111,3 +111,47 @@ describe('toFixedScore', () => {
     expect(toFixedScore(99.995)).toBe('100.00');
   });
 });
+
+/* ---------- containsManualGradeTag ---------- */
+
+import { containsManualGradeTag } from '../src/lib/text';
+
+describe('containsManualGradeTag', () => {
+  const TAG = '[TA Graded]';
+
+  it('detects [TA Graded] tag', () => {
+    expect(containsManualGradeTag('[TA Graded]', TAG)).toBe(true);
+  });
+
+  it('is case insensitive', () => {
+    expect(containsManualGradeTag('[ta graded]', TAG)).toBe(true);
+    expect(containsManualGradeTag('[TA GRADED]', TAG)).toBe(true);
+    expect(containsManualGradeTag('[Ta Graded]', TAG)).toBe(true);
+  });
+
+  it('finds tag embedded in other text', () => {
+    expect(containsManualGradeTag('Some feedback [TA Graded] more notes', TAG)).toBe(true);
+  });
+
+  it('returns false for no tag', () => {
+    expect(containsManualGradeTag('Regular feedback', TAG)).toBe(false);
+    expect(containsManualGradeTag('', TAG)).toBe(false);
+    expect(containsManualGradeTag(null, TAG)).toBe(false);
+    expect(containsManualGradeTag(undefined, TAG)).toBe(false);
+  });
+
+  it('returns false for partial matches', () => {
+    expect(containsManualGradeTag('TA Graded', TAG)).toBe(false);  // no brackets
+    expect(containsManualGradeTag('[TA Grade]', TAG)).toBe(false);  // wrong word
+  });
+
+  it('works with custom tags', () => {
+    expect(containsManualGradeTag('[Prof Graded] notes', '[Prof Graded]')).toBe(true);
+    expect(containsManualGradeTag('[prof graded] notes', '[Prof Graded]')).toBe(true);
+    expect(containsManualGradeTag('[TA Graded]', '[Prof Graded]')).toBe(false);
+  });
+
+  it('returns false when tag is empty', () => {
+    expect(containsManualGradeTag('[TA Graded]', '')).toBe(false);
+  });
+});
